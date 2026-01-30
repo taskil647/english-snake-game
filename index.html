@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>47老师的寒假英语大冒险 V7.0</title>
+    <style>
+        :root {
+            --primary: #FF9800;
+            --bg-color: #fdfbf7;
+            --panel-bg: rgba(255, 255, 255, 0.95);
+        }
+
+        /* 禁止用户选择和默认触摸高亮 */
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-color);
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            /* 100dvh 解决手机浏览器地址栏遮挡问题 */
+            height: 100vh; height: 100dvh; 
+            width: 100vw;
+            overflow: hidden;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            /* 关键：彻底禁止浏览器默认的下拉、缩放手势 */
+            touch-action: none; 
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%; max-width: 600px; height: 100%;
+            display: flex; flex-direction: column; align-items: center;
+        }
+
+        /* 仪表盘 */
+        #hud {
+            width: 95%; margin-top: 10px;
+            background: var(--panel-bg);
+            border-radius: 16px; padding: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            z-index: 20; flex-shrink: 0;
+            backdrop-filter: blur(5px);
+            border: 2px solid #fff;
+        }
+
+        .hud-header { display: flex; justify-content: space-between; font-size: 14px; color: #666; font-weight: bold; }
+        #target-display { text-align: center; font-size: 26px; color: var(--primary); font-weight: 900; margin: 5px 0; text-shadow: 1px 1px 0 #fff; }
+
+        /* 画布容器 */
+        #canvas-wrapper {
+            flex: 1; width: 95%; margin: 10px 0;
+            position: relative;
+            background: #fff;
+            border-radius: 16px;
+            border: 3px solid var(--primary);
+            overflow: hidden;
+            box-shadow: inset 0 0 30px rgba(0,0,0,0.05);
+            background-size: cover; background-position: center;
+            z-index: 1;
+        }
+
+        canvas { display: block; width: 100%; height: 100%; }
+
+        /* 菜单层 */
+        #menu-layer {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.98);
+            z-index: 100; /* 保证菜单在最上层 */
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+
+        /* 菜单头像 */
+        .menu-avatar {
+            width: 100px; height: 100px;
+            border-radius: 50%;
+            border: 4px solid var(--primary);
+            margin-bottom: 15px;
+            object-fit: cover;
+            background-color: #fff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            animation: floatAvatar 3s ease-in-out infinite;
+        }
+
+        @keyframes floatAvatar {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-8px); }
+        }
+
+        h1 { color: var(--primary); margin-bottom: 5px; font-size: 28px; text-align: center; padding: 0 10px; }
+        p { color: #888; font-size: 14px; margin-bottom: 20px; }
+
+        select {
+            padding: 12px 25px; font-size: 16px;
+            border: 2px solid var(--primary); border-radius: 50px;
+            background: #fff; margin-bottom: 20px; outline: none;
+            text-align: center; font-weight: bold; color: #333;
+            -webkit-appearance: none; /* 修复iOS圆角 */
+        }
+
+        .btn-start {
+            background: linear-gradient(45deg, #FF9800, #F57C00);
+            color: white; border: none; padding: 15px 60px; border-radius: 50px;
+            font-size: 20px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 6px 15px rgba(255, 152, 0, 0.4);
+            transition: transform 0.1s;
+        }
+        .btn-start:active { transform: scale(0.95); }
+
+        #mobile-hint { position: absolute; bottom: 20px; color: #aaa; font-size: 12px; pointer-events: none; z-index: 5; }
+        
+        .shake { animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both; }
+        @keyframes shake { 10%, 90% { transform: translate3d(-2px, 0, 0); } 40%, 60% { transform: translate3d(2px, 0, 0); } }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <div class="hud-header">
+            <span>⭐ 积分: <span id="score-val">0</span></span>
+            <span>🐍 长度: <span id="length-val">3</span></span>
+        </div>
+        <div style="text-align: center; font-size: 12px; color: #999; margin-top:5px;">请帮47老师找到：</div>
+        <div id="target-display">READY</div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="gameCanvas"></canvas>
+    </div>
+
+    <div id="menu-layer">
+        <img id="menu-avatar-img" class="menu-avatar" src="" alt="47老师">
+        
+        <h1>47老师的寒假英语大冒险</h1>
+        <p>帮助647吃到正确的单词，加油！</p>
+        
+        <select id="grade-select">
+            <option value="1">一年级 (启蒙)</option>
+            <option value="2">二年级 (基础)</option>
+            <option value="3">三年级 (进阶)</option>
+            <option value="4">四年级 (提高)</option>
+            <option value="5">五年级 (应用)</option>
+            <option value="6">六年级 (综合)</option>
+        </select>
+        <button class="btn-start" onclick="startGame()">开始挑战</button>
+    </div>
+
+    <div id="mobile-hint">电脑用方向键 / 手机滑动屏幕</div>
+</div>
+
+<script>
+    /**
+     * ==========================================
+     * 【47老师专属配置区】
+     * 请在下方引号内填入 Base64 代码
+     * ==========================================
+     */
+    
+    // 1. 游戏内蛇头小头像
+    const AVATAR_SRC = "data:image/png;base64,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"; 
+    
+    // 2. 游戏背景图
+    const BG_SRC = ""; 
+
+    // 3. 菜单开始界面大头像 (如果不填，默认使用蛇头小头像)
+    const MENU_AVATAR_SRC = ""; 
+
+    // 4. 蛇身粗细 (0.1 - 1.0)
+    const SNAKE_THICKNESS_RATIO = 0.6; 
+
+    // ==========================================
+
+    const fullWordBank = {
+        "1": [
+            {en:"apple", cn:"苹果"}, {en:"ant", cn:"蚂蚁"}, {en:"bear", cn:"熊"}, {en:"bird", cn:"鸟"},
+            {en:"blue", cn:"蓝色"}, {en:"book", cn:"书"}, {en:"boy", cn:"男孩"}, {en:"bus", cn:"公交车"},
+            {en:"cat", cn:"猫"}, {en:"car", cn:"汽车"}, {en:"cool", cn:"凉爽的"}, {en:"cow", cn:"奶牛"},
+            {en:"dad", cn:"爸爸"}, {en:"desk", cn:"书桌"}, {en:"dog", cn:"狗"}, {en:"duck", cn:"鸭子"},
+            {en:"ear", cn:"耳朵"}, {en:"eye", cn:"眼睛"}, {en:"egg", cn:"鸡蛋"}, {en:"eight", cn:"八"},
+            {en:"face", cn:"脸"}, {en:"fish", cn:"鱼"}, {en:"five", cn:"五"}, {en:"foot", cn:"脚"},
+            {en:"girl", cn:"女孩"}, {en:"green", cn:"绿色"}, {en:"good", cn:"好的"}, {en:"gift", cn:"礼物"},
+            {en:"hand", cn:"手"}, {en:"head", cn:"头"}, {en:"happy", cn:"快乐"}, {en:"hot", cn:"热的"},
+            {en:"ice", cn:"冰"}, {en:"kite", cn:"风筝"}, {en:"leg", cn:"腿"}, {en:"long", cn:"长的"},
+            {en:"mom", cn:"妈妈"}, {en:"milk", cn:"牛奶"}, {en:"mouth", cn:"嘴巴"}, {en:"monkey", cn:"猴子"},
+            {en:"nose", cn:"鼻子"}, {en:"new", cn:"新的"}, {en:"nine", cn:"九"}, {en:"nice", cn:"美好的"},
+            {en:"one", cn:"一"}, {en:"orange", cn:"橙色"}, {en:"pen", cn:"钢笔"}, {en:"pig", cn:"猪"},
+            {en:"red", cn:"红色"}, {en:"rice", cn:"米饭"}, {en:"run", cn:"跑"}, {en:"rabbit", cn:"兔子"}
+        ],
+        "2": [
+            {en:"autumn", cn:"秋天"}, {en:"bag", cn:"书包"}, {en:"bed", cn:"床"}, {en:"bike", cn:"自行车"},
+            {en:"boat", cn:"小船"}, {en:"box", cn:"盒子"}, {en:"bread", cn:"面包"}, {en:"brother", cn:"兄弟"},
+            {en:"cake", cn:"蛋糕"}, {en:"chair", cn:"椅子"}, {en:"chicken", cn:"鸡肉"}, {en:"class", cn:"班级"},
+            {en:"clock", cn:"钟"}, {en:"coat", cn:"外套"}, {en:"cold", cn:"寒冷的"}, {en:"color", cn:"颜色"},
+            {en:"dance", cn:"跳舞"}, {en:"door", cn:"门"}, {en:"draw", cn:"画画"}, {en:"dress", cn:"连衣裙"},
+            {en:"drink", cn:"喝"}, {en:"driver", cn:"司机"}, {en:"eat", cn:"吃"}, {en:"eleven", cn:"十一"},
+            {en:"family", cn:"家庭"}, {en:"farm", cn:"农场"}, {en:"farmer", cn:"农民"}, {en:"fat", cn:"胖的"},
+            {en:"father", cn:"父亲"}, {en:"fifteen", cn:"十五"}, {en:"flower", cn:"花"}, {en:"food", cn:"食物"},
+            {en:"friend", cn:"朋友"}, {en:"fruit", cn:"水果"}, {en:"game", cn:"游戏"}, {en:"grandmother", cn:"祖母"},
+            {en:"grass", cn:"草"}, {en:"hair", cn:"头发"}, {en:"help", cn:"帮助"}, {en:"home", cn:"家"},
+            {en:"house", cn:"房子"}, {en:"hungry", cn:"饥饿"}, {en:"juice", cn:"果汁"}, {en:"lamp", cn:"台灯"}
+        ],
+        "3": [
+            {en:"afternoon", cn:"下午"}, {en:"art", cn:"美术"}, {en:"baby", cn:"婴儿"}, {en:"ball", cn:"球"},
+            {en:"balloon", cn:"气球"}, {en:"banana", cn:"香蕉"}, {en:"basketball", cn:"篮球"}, {en:"beach", cn:"海滩"},
+            {en:"beautiful", cn:"美丽的"}, {en:"bedroom", cn:"卧室"}, {en:"behind", cn:"在后面"}, {en:"birthday", cn:"生日"},
+            {en:"black", cn:"黑色"}, {en:"blouse", cn:"女衬衫"}, {en:"body", cn:"身体"}, {en:"breakfast", cn:"早餐"},
+            {en:"brown", cn:"棕色"}, {en:"buy", cn:"买"}, {en:"bye", cn:"再见"}, {en:"camera", cn:"照相机"},
+            {en:"candy", cn:"糖果"}, {en:"card", cn:"卡片"}, {en:"careful", cn:"小心的"}, {en:"carrot", cn:"胡萝卜"},
+            {en:"catch", cn:"抓"}, {en:"cheap", cn:"便宜的"}, {en:"cheese", cn:"奶酪"}, {en:"chopsticks", cn:"筷子"},
+            {en:"city", cn:"城市"}, {en:"clean", cn:"干净的"}, {en:"clever", cn:"聪明的"}, {en:"climb", cn:"爬"},
+            {en:"close", cn:"关"}, {en:"clothes", cn:"衣服"}, {en:"cloudy", cn:"多云的"}, {en:"coffee", cn:"咖啡"},
+            {en:"come", cn:"来"}, {en:"computer", cn:"电脑"}, {en:"cook", cn:"做饭"}, {en:"country", cn:"国家"}
+        ],
+        "4": [
+            {en:"always", cn:"总是"}, {en:"america", cn:"美国"}, {en:"animal", cn:"动物"}, {en:"answer", cn:"回答"},
+            {en:"april", cn:"四月"}, {en:"arrive", cn:"到达"}, {en:"ask", cn:"问"}, {en:"august", cn:"八月"},
+            {en:"aunt", cn:"阿姨"}, {en:"bank", cn:"银行"}, {en:"bathroom", cn:"浴室"}, {en:"before", cn:"在之前"},
+            {en:"begin", cn:"开始"}, {en:"beside", cn:"在旁边"}, {en:"better", cn:"更好的"}, {en:"between", cn:"在中间"},
+            {en:"bicycle", cn:"自行车"}, {en:"big", cn:"大的"}, {en:"birthday", cn:"生日"}, {en:"biscuit", cn:"饼干"},
+            {en:"boring", cn:"无聊的"}, {en:"borrow", cn:"借"}, {en:"bottle", cn:"瓶子"}, {en:"bowl", cn:"碗"},
+            {en:"bread", cn:"面包"}, {en:"breakfast", cn:"早餐"}, {en:"bridge", cn:"桥"}, {en:"bring", cn:"带来"},
+            {en:"brush", cn:"刷"}, {en:"building", cn:"建筑物"}, {en:"busy", cn:"忙碌的"}, {en:"butter", cn:"黄油"},
+            {en:"cabbage", cn:"卷心菜"}, {en:"calendar", cn:"日历"}, {en:"call", cn:"打电话"}, {en:"camera", cn:"相机"}
+        ],
+        "5": [
+            {en:"active", cn:"活跃的"}, {en:"activity", cn:"活动"}, {en:"address", cn:"地址"}, {en:"advice", cn:"建议"},
+            {en:"afraid", cn:"害怕的"}, {en:"after", cn:"在之后"}, {en:"again", cn:"再一次"}, {en:"age", cn:"年龄"},
+            {en:"ago", cn:"以前"}, {en:"agree", cn:"同意"}, {en:"air", cn:"空气"}, {en:"airport", cn:"机场"},
+            {en:"alive", cn:"活着的"}, {en:"all", cn:"全部"}, {en:"almost", cn:"几乎"}, {en:"along", cn:"沿着"},
+            {en:"also", cn:"也"}, {en:"angry", cn:"生气的"}, {en:"animal", cn:"动物"}, {en:"another", cn:"另一个"},
+            {en:"answer", cn:"答案"}, {en:"any", cn:"任何"}, {en:"anything", cn:"任何事"}, {en:"appear", cn:"出现"},
+            {en:"apple", cn:"苹果"}, {en:"april", cn:"四月"}, {en:"arm", cn:"手臂"}, {en:"around", cn:"周围"},
+            {en:"arrive", cn:"到达"}, {en:"art", cn:"艺术"}, {en:"ask", cn:"问"}, {en:"august", cn:"八月"}
+        ],
+        "6": [
+            {en:"ability", cn:"能力"}, {en:"about", cn:"关于"}, {en:"above", cn:"在上方"}, {en:"abroad", cn:"在国外"},
+            {en:"absent", cn:"缺席的"}, {en:"accent", cn:"口音"}, {en:"accept", cn:"接受"}, {en:"accident", cn:"事故"},
+            {en:"ache", cn:"疼痛"}, {en:"achieve", cn:"实现"}, {en:"across", cn:"穿过"}, {en:"act", cn:"行动"},
+            {en:"action", cn:"动作"}, {en:"active", cn:"积极的"}, {en:"actor", cn:"男演员"}, {en:"actress", cn:"女演员"},
+            {en:"actual", cn:"实际的"}, {en:"add", cn:"增加"}, {en:"address", cn:"地址"}, {en:"admire", cn:"羡慕"},
+            {en:"admit", cn:"承认"}, {en:"adult", cn:"成年人"}, {en:"advance", cn:"前进"}, {en:"adventure", cn:"冒险"},
+            {en:"advice", cn:"建议"}, {en:"advise", cn:"建议"}, {en:"afford", cn:"买得起"}, {en:"afraid", cn:"害怕"}
+        ]
+    };
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrapper = document.getElementById('canvas-wrapper');
+    const menuLayer = document.getElementById('menu-layer');
+    
+    // 初始化菜单头像
+    window.onload = function() {
+        const menuImgEl = document.getElementById('menu-avatar-img');
+        const defaultSVG = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiBmaWxsPSIjRkY5ODAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIvPjwvc3ZnPg==";
+        if(menuImgEl) {
+            menuImgEl.src = MENU_AVATAR_SRC || AVATAR_SRC || defaultSVG;
+        }
+    };
+
+    // 图片加载
+    const avatarImg = new Image();
+    if(AVATAR_SRC) avatarImg.src = AVATAR_SRC;
+    if(BG_SRC) {
+        wrapper.style.backgroundImage = `url('${BG_SRC}')`;
+        wrapper.style.boxShadow = "inset 0 0 0 2000px rgba(255,255,255,0.75)";
+    }
+
+    let state = {
+        gridSize: 0, cols: 0, rows: 0,
+        snake: [], direction: {x: 1, y: 0}, inputQueue: [],
+        words: [], target: null,
+        score: 0, pool: [], usedWords: new Set(),
+        running: false, lastTime: 0, speed: 200
+    };
+
+    // 音频预加载 (解决移动端静音)
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function unlockAudio() {
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+    }
+
+    function resize() {
+        const rect = wrapper.getBoundingClientRect();
+        const baseGrid = window.innerWidth < 600 ? 25 : 32;
+        state.cols = Math.floor(rect.width / baseGrid);
+        state.rows = Math.floor(rect.height / baseGrid);
+        state.gridSize = Math.floor(rect.width / state.cols);
+        
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        canvas.style.width = rect.width + 'px';
+        canvas.style.height = rect.height + 'px';
+        ctx.scale(dpr, dpr);
+    }
+
+    function startGame() {
+        unlockAudio(); // 解锁音频
+        const grade = document.getElementById('grade-select').value;
+        state.pool = [...(fullWordBank[grade] || fullWordBank["1"])];
+        state.usedWords.clear();
+        
+        menuLayer.style.display = 'none';
+        
+        resize();
+        
+        const startX = Math.floor(state.cols / 2);
+        const startY = Math.floor(state.rows / 2);
+        state.snake = [{x: startX, y: startY}, {x: startX-1, y: startY}, {x: startX-2, y: startY}];
+        state.direction = {x: 1, y: 0};
+        state.inputQueue = [];
+        state.score = 0;
+        state.speed = 200;
+        state.running = true;
+        state.lastTime = 0;
+
+        updateHUD();
+        spawnTask();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function spawnTask() {
+        state.words = [];
+        let availableWords = state.pool.filter(w => !state.usedWords.has(w.en));
+        if (availableWords.length === 0) {
+            state.usedWords.clear();
+            availableWords = state.pool;
+        }
+        
+        state.target = availableWords[Math.floor(Math.random() * availableWords.length)];
+        state.usedWords.add(state.target.en);
+        document.getElementById('target-display').innerText = state.target.cn;
+        
+        placeWord(state.target.en, 'target');
+        
+        let count = 0, attempts = 0;
+        while(count < 3 && attempts < 50) { 
+            let wrong = state.pool[Math.floor(Math.random() * state.pool.length)];
+            let exists = state.words.some(w => w.text === wrong.en);
+            if (wrong.en !== state.target.en && !exists) {
+                placeWord(wrong.en, 'wrong');
+                count++;
+            }
+            attempts++;
+        }
+    }
+
+    function placeWord(text, type) {
+        ctx.font = "bold 16px Arial"; 
+        const textMetrics = ctx.measureText(text);
+        const wordPixelWidth = textMetrics.width + 20;
+        const wordGridWidth = Math.ceil(wordPixelWidth / state.gridSize);
+
+        for(let i=0; i<100; i++) {
+            let x = Math.floor(Math.random() * (state.cols - wordGridWidth - 1)) + 1;
+            let y = Math.floor(Math.random() * (state.rows - 2)) + 1;
+            
+            let hitSnake = state.snake.some(s => s.x >= x - 1 && s.x <= x + wordGridWidth && Math.abs(s.y-y) < 2);
+            let hitWord = state.words.some(w => !(x + wordGridWidth < w.x || x > w.x + w.wGrid || Math.abs(y - w.y) > 2));
+
+            if (!hitSnake && !hitWord) {
+                state.words.push({x, y, text, type, wGrid: wordGridWidth, wPixel: wordPixelWidth});
+                return;
+            }
+        }
+    }
+
+    function gameLoop(timestamp) {
+        if (!state.running) return;
+        if (timestamp - state.lastTime > state.speed) {
+            update();
+            state.lastTime = timestamp;
+        }
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function update() {
+        if (state.inputQueue.length > 0) {
+            const nextDir = state.inputQueue.shift();
+            if (nextDir.x !== -state.direction.x && nextDir.y !== -state.direction.y) {
+                state.direction = nextDir;
+            }
+        }
+        const head = {x: state.snake[0].x + state.direction.x, y: state.snake[0].y + state.direction.y};
+
+        if (head.x < 0 || head.x >= state.cols || head.y < 0 || head.y >= state.rows ||
+            state.snake.some(s => s.x === head.x && s.y === head.y)) {
+            gameOver(); return;
+        }
+
+        state.snake.unshift(head);
+
+        let eatenIdx = state.words.findIndex(w => {
+            if (head.y !== w.y) return false;
+            return head.x >= w.x && head.x < w.x + w.wGrid; 
+        });
+
+        if (eatenIdx !== -1) {
+            const word = state.words[eatenIdx];
+            if (word.type === 'target') {
+                state.score += 10;
+                playAudio(word.text);
+                spawnTask(); 
+                if(state.speed > 100) state.speed -= 2;
+            } else {
+                state.score = Math.max(0, state.score - 5);
+                triggerShake();
+                state.words.splice(eatenIdx, 1);
+                state.snake.shift(); state.snake.pop(); 
+                if (state.snake.length < 1) { gameOver(); return; }
+            }
+        } else {
+            state.snake.pop();
+        }
+        updateHUD();
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const gs = state.gridSize;
+
+        // 绘制单词 (背景统一为白色)
+        ctx.font = "bold 16px Arial";
+        ctx.textBaseline = "middle";
+        state.words.forEach(w => {
+            const pixelX = w.x * gs;
+            const pixelY = w.y * gs;
+            
+            ctx.fillStyle = '#FFFFFF'; 
+            ctx.shadowColor = "rgba(0,0,0,0.1)"; ctx.shadowBlur = 4;
+            
+            const bgWidth = w.wPixel;
+            const bgHeight = gs * 0.9;
+            const bgY = pixelY - bgHeight/2 + gs/2;
+
+            ctx.beginPath();
+            ctx.roundRect(pixelX, bgY, bgWidth, bgHeight, 8);
+            ctx.fill();
+            
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#E65100'; 
+            ctx.fillText(w.text, pixelX + 10, bgY + bgHeight/2);
+        });
+
+        // 绘制蛇
+        const snakeSize = gs * SNAKE_THICKNESS_RATIO;
+        const offset = (gs - snakeSize) / 2;
+
+        state.snake.forEach((p, i) => {
+            const drawX = p.x * gs + offset;
+            const drawY = p.y * gs + offset;
+
+            if (i === 0) {
+                ctx.save();
+                ctx.beginPath();
+                const headSize = gs * 1.2; 
+                const headCenterX = p.x * gs + gs/2;
+                const headCenterY = p.y * gs + gs/2;
+                ctx.arc(headCenterX, headCenterY, headSize/2, 0, Math.PI*2);
+                ctx.clip();
+                if (AVATAR_SRC && avatarImg.complete) {
+                    ctx.drawImage(avatarImg, headCenterX - headSize/2, headCenterY - headSize/2, headSize, headSize);
+                } else {
+                    ctx.fillStyle = '#FF9800'; ctx.fill();
+                    ctx.fillStyle = '#fff';
+                    ctx.beginPath(); ctx.arc(headCenterX-5, headCenterY-2, 3, 0, Math.PI*2); ctx.fill();
+                    ctx.beginPath(); ctx.arc(headCenterX+5, headCenterY-2, 3, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.restore();
+            } else {
+                ctx.fillStyle = i%2===0 ? '#4CAF50' : '#8BC34A';
+                ctx.beginPath();
+                ctx.roundRect(drawX, drawY, snakeSize, snakeSize, 4);
+                ctx.fill();
+            }
+        });
+    }
+
+    function updateHUD() {
+        document.getElementById('score-val').innerText = state.score;
+        document.getElementById('length-val').innerText = state.snake.length;
+    }
+    function triggerShake() {
+        wrapper.classList.remove('shake');
+        void wrapper.offsetWidth;
+        wrapper.classList.add('shake');
+    }
+    function playAudio(text) { try { new Audio(`https://dict.youdao.com/dictvoice?audio=${text}&type=2`).play().catch(()=>{}); } catch(e){} }
+    function gameOver() {
+        state.running = false;
+        alert("挑战结束！47班级最终积分: " + state.score);
+        menuLayer.style.display = 'flex';
+    }
+    function queueInput(newDir) {
+        const lastDir = state.inputQueue.length > 0 ? state.inputQueue[state.inputQueue.length - 1] : state.direction;
+        if (newDir.x !== -lastDir.x && newDir.y !== -lastDir.y && state.inputQueue.length < 2) state.inputQueue.push(newDir);
+    }
+    
+    // 键盘事件
+    window.addEventListener('keydown', e => {
+        if(e.key==='ArrowUp') queueInput({x:0, y:-1});
+        if(e.key==='ArrowDown') queueInput({x:0, y:1});
+        if(e.key==='ArrowLeft') queueInput({x:-1, y:0});
+        if(e.key==='ArrowRight') queueInput({x:1, y:0});
+    });
+
+    // 触摸事件 (移动端核心)
+    let tsX, tsY;
+    document.addEventListener('touchstart', e => { tsX = e.touches[0].clientX; tsY = e.touches[0].clientY; }, {passive: false});
+    
+    document.addEventListener('touchmove', e => { e.preventDefault(); }, {passive: false}); // 全局禁止默认滚动
+
+    document.addEventListener('touchend', e => {
+        const dx = e.changedTouches[0].clientX - tsX, dy = e.changedTouches[0].clientY - tsY;
+        if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx)>30) queueInput(dx>0?{x:1,y:0}:{x:-1,y:0});
+        else if (Math.abs(dy)>30) queueInput(dy>0?{x:0,y:1}:{x:0,y:-1});
+    }, {passive: false});
+
+    window.addEventListener('resize', () => { if(state.running) resize(); });
+
+</script>
+</body>
+</html>
